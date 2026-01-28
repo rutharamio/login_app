@@ -1,0 +1,31 @@
+# Secrets / config
+/config/db.php
+/config/google_config.php
+/config/session.php
+
+# Environment
+.env
+
+# Dependencies
+/vendor/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime storage
+/storage/
+
+# Composer deps
+/vendor/
+
+# Config real
+/config/db.php
+/config/google_config.php
+/config/session.php
+
+# Logs
+*.log
