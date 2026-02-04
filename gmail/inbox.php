@@ -90,11 +90,18 @@ $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
             Refrescar correos
         </button>
     </form>
+
+        <form method="post" action="compose.php" style="display:inline;">
+        <button type="submit" class="btn btn-primary">
+            Redactar correo
+        </button>
+    </form>
+
 </div>
 </div>
 
 <form id="bulk-form" method="post" action="bulk_action.php">
-<?php if ($view === 'unread' || $view === 'read'): ?>
+<?php if ($view === 'unread' || $view === 'read'): ?> 
     <div class="inbox-toolbar">
         <label class="select-all">
             <input type="checkbox" id="select-all">
@@ -122,7 +129,7 @@ $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 <?php foreach ($threads as $t): ?>
 <div class="thread-row <?= $t['unread_count'] > 0 ? 'unread' : 'read' ?>">
-<?php if ($view === 'unread' || $view === 'read'): ?>
+<?php if ($view === 'unread' || $view === 'read') : ?>
     <!-- Checkbox -->
     <div class="thread-col checkbox-col">
         <input

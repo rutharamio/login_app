@@ -49,6 +49,23 @@ $stmt = $conn->prepare("
 $stmt->execute([$threadId, $userId]);
 $gmailThreadId = $stmt->fetchColumn();
 
+// 3.5 para ver si el thread se puede responder (si no hay emails externos entonces no se puede responder)
+$stmt = $conn->prepare("
+    SELECT COUNT(*)
+    FROM emails
+    WHERE thread_id = ?
+      AND user_id = ?
+      AND from_email <> ?
+      AND rfc_message_id IS NOT NULL
+      AND is_deleted = 0
+");
+$stmt->execute([
+    $threadId,
+    $userId,
+    $_SESSION['email']
+]);
+
+$canReply = ((int)$stmt->fetchColumn() > 0);
 /* 4) Marcar emails como leídos */
 $stmt = $conn->prepare("
     UPDATE emails
@@ -189,6 +206,10 @@ $isDeletedThread = ((int)$stmt->fetchColumn() === 0);
                 <p class="muted">
                     Este hilo aún no está vinculado a Gmail (no hay gmail_threads.thread_id).
                     Ejecutá <strong>Refrescar correos</strong> para completar el mapping.
+                </p>
+            <?php elseif ($canReply === false): ?>
+                <p class="muted">
+                    Aun no hay respuesta del destinatario, no puedes escribir en este hilo por ahora.
                 </p>
             <?php else: ?>
                 <form method="post" action="reply.php" enctype="multipart/form-data">

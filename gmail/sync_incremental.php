@@ -344,7 +344,7 @@ foreach ($labelEvents as $gmailMessageId => $events) {
     $stmt = $conn->prepare("
         SELECT id FROM emails
         WHERE user_id = ? 
-            AND rfc_message_id = ?
+            AND gmail_message_id = ?
         LIMIT 1
     ");
     $stmt->execute([$userId, $gmailMessageId]);
@@ -384,7 +384,7 @@ foreach ($messageIds as $gmailMessageId) {
     $stmt = $conn->prepare("
         SELECT id FROM emails
         WHERE user_id = ?
-            AND rfc_message_id = ?
+            AND gmail_message_id = ?
         LIMIT 1
     ");
     $stmt->execute([$userId, $gmailMessageId]);
@@ -439,8 +439,6 @@ foreach ($messageIds as $gmailMessageId) {
     foreach ($headers as $h) {
         $headerMap[strtolower($h['name'])] = $h['value'];
     }
-    $referencesHeader = $headerMap['references'] ?? null;
-
     $body = extractEmailBody($msg['payload'] ?? []);
     
     $fromParsed = parseEmailAndName($headerMap['from'] ?? '');
@@ -467,7 +465,7 @@ foreach ($messageIds as $gmailMessageId) {
             is_inbox,
             is_deleted,
             rfc_message_id,
-            rfc_references
+            rfc_references  
         )
         VALUES
         (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
@@ -488,8 +486,8 @@ foreach ($messageIds as $gmailMessageId) {
         $msg['sizeEstimate'] ?? 0,
         1,
         0,
-        $messageIdHeader,
-        $referencesHeader
+        $headerMap['message-id'] ?? null,
+        $headerMap['references'] ?? null
     ]);
 
     $emailId = $conn->lastInsertId();
@@ -543,7 +541,7 @@ foreach ($messageIds as $gmailMessageId) {
 
     if (!empty($attachments)) {
 
-        $baseDir = __DIR__ . "/../storage/attachments/{$userId}/{$emailId}";
+        $baseDir = __DIR__ . "/../storage/users/{$userId}/threads/{$threadDbId}/attachments/{$emailId}";
         if (!is_dir($baseDir)) {
             mkdir($baseDir, 0775, true);
         }

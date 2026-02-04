@@ -30,6 +30,11 @@ function normalizeText(?string $value): string
     return preg_replace('/\s+/', ' ', $value);
 }
 
+    function normalizeSubject(string $s): string 
+{
+    $s = preg_replace('/^re:\s*/i', '', $s);
+    return normalizeText($s);
+}
 /**
  * Reconciliar email temporal (sent_*) contra email real de Gmail
  */
@@ -61,17 +66,17 @@ function reconcileSentTempAgainstReal(
         SELECT id, sent_at_local, subject_original, body_text, from_email
         FROM emails
         WHERE user_id = ?
-          AND thread_id = ?
           AND is_temporary = 1
           AND replaced_by IS NULL
           AND is_deleted = 0
+          AND from_email = ?
         ORDER BY sent_at_local DESC
         LIMIT 5
     ");
 
     $stmt->execute([
         $userId,
-        $threadId,
+        $real['from_email'],
     ]);
 
     $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -96,13 +101,7 @@ function reconcileSentTempAgainstReal(
             continue;
         }
 
-        //subject tolerante
-        if (normalizeText($temp['subject_original']) !== $subject) {
-            continue;
-        }
-
-        //body tolerante
-        if (normalizeText($temp['body_text']) !== $body) {
+        if (normalizeSubject($temp['subject_original']) !== normalizeSubject($subject)) {
             continue;
         }
 
@@ -122,6 +121,7 @@ function reconcileSentTempAgainstReal(
         return; // reconciliamos solo uno
     }
 }
+
 
 /**
  * Garantiza que un email temporal no tenga adjuntos

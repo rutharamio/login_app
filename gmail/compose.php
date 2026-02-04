@@ -1,8 +1,9 @@
 <?php
 require __DIR__ . '/../config/session.php';
+require __DIR__ .'/../config/db.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ../index.php');
+    header('Location: inbox.php');
     exit;
 }
 ?>
@@ -47,16 +48,7 @@ if (!isset($_SESSION['user_id'])) {
         <button type="submit" class="btn btn-primary">
             Enviar correo
         </button>
-
-        <a href="inbox.php" class="btn btn-light">
-            Cancelar
-        </a>
     </div>
-
-    <p class="muted" id="fileInfo">
-        No se han seleccionado archivos.
-    </p>
-    <ul id="filePreview"></ul>
 
 </form>
 
@@ -65,60 +57,71 @@ if (!isset($_SESSION['user_id'])) {
 
 <script>
 const fileInput = document.getElementById('fileInput');
-const info = document.getElementById('fileInfo');
 const preview = document.getElementById('filePreview');
 
 let filesList = [];
 
-fileInput.addEventListener('change', () => {
-    filesList = Array.from(fileInput.files);
-    renderPreview();
-});
+if (fileInput && preview) {
+    fileInput.addEventListener('change', () => {
+        selectedFiles = Array.from(fileInput.files);
+        renderPreview();
+    });
+}
 
 function renderPreview() {
-    preview.innerHTML = '';
+preview.innerHTML = '';
 
-    if (filesList.length === 0) {
-        info.textContent = 'No se han seleccionado archivos.';
-        updateInputFiles();
-        return;
+selectedFiles.forEach((file, index) => {
+    const item = document.createElement('div');
+    item.className = 'attachment-preview-item';
+
+    // Botón eliminar ❌
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'attachment-remove';
+    removeBtn.innerHTML = 'Eliminar';
+    removeBtn.onclick = () => {
+        selectedFiles.splice(index, 1);
+        syncFileInput();
+        renderPreview();
+    };
+
+    // Contenido preview
+    const content = document.createElement('div');
+    content.className = 'attachment-content';
+
+    // Imagen
+    if (file.type.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.className = 'attachment-img';
+        content.appendChild(img);
+
+    // PDF
+    } else if (file.type === 'application/pdf') {
+        const iframe = document.createElement('iframe');
+        iframe.src = URL.createObjectURL(file);
+        iframe.className = 'attachment-pdf';
+        content.appendChild(iframe);
+
+    // Otros archivos
+    } else {
+        content.textContent = `${file.name} (${Math.round(file.size / 1024)} KB)`;
     }
 
-    info.textContent = `Archivos seleccionados (${filesList.length}):`;
-
-    filesList.forEach((file, index) => {
-        const li = document.createElement('li');
-        li.style.display = 'flex';
-        li.style.justifyContent = 'space-between';
-        li.style.alignItems = 'center';
-        li.style.gap = '8px';
-
-        li.innerHTML = `
-            <span>${file.name} (${Math.round(file.size / 1024)} KB)</span>
-            <button type="button"
-                    class="btn btn-light"
-                    style="padding:4px 8px"
-                    onclick="removeFile(${index})">
-                ✖
-            </button>
-        `;
-
-        preview.appendChild(li);
-    });
-
-    updateInputFiles();
+    item.appendChild(removeBtn);
+    item.appendChild(content);
+    preview.appendChild(item);
+});
 }
 
-function removeFile(index) {
-    filesList.splice(index, 1);
-    renderPreview();
+// Mantener sincronizado el input file real
+function syncFileInput() {
+const dataTransfer = new DataTransfer();
+selectedFiles.forEach(file => dataTransfer.items.add(file));
+fileInput.files = dataTransfer.files;
 }
 
-function updateInputFiles() {
-    const dt = new DataTransfer();
-    filesList.forEach(f => dt.items.add(f));
-    fileInput.files = dt.files;
-}
 </script>   
 </body>
 </html>
