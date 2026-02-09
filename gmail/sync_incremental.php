@@ -135,12 +135,6 @@ function fetchGmailMessageFull(string $accessToken, string $messageId): array
     return is_array($data) ? $data : [];
 }
 
-// Seguridad solo admins
-if (!isset($_SESSION['user_id']) || ($_SESSION['rol'] ?? '') !== 'admin') {
-    http_response_code(403);
-    die('Acceso denegado');
-}
-
 $userId = $_SESSION['user_id'];
 
 // Registrar inicio
@@ -172,50 +166,9 @@ try {
 }
 
 if (empty($tokenRow['last_history_id'])) {
-
-    error_log("HISTORY INIT: last_history_id is NULL, bootstrapping");
-
-    $ch = curl_init('https://gmail.googleapis.com/gmail/v1/users/me/profile');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $accessTokenString
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    error_log("GMAIL PROFILE HTTP CODE: " . $httpCode);
-    error_log("GMAIL PROFILE RAW RESPONSE: " . $response);
-
-    if ($httpCode !== 200) {
-        die('No se pudo obtener profile de Gmail');
-    }
-
-    $profile = json_decode($response, true);
-
-    if (empty($profile['historyId'])) {
-        die('Gmail profile sin historyId');
-    }
-
-    $stmt = $conn->prepare("
-        UPDATE google_gmail_tokens
-        SET last_history_id = ?, updated_at = NOW()
-        WHERE id = ?
-    ");
-    $stmt->execute([
-        $profile['historyId'],
-        $tokenRow['id']
-    ]);
-
-    error_log("HISTORY INIT OK historyId=" . $profile['historyId']);
-
-    // IMPORTANTE:
-    // en esta ejecución NO se hace sync incremental todavía
-    echo "HISTORY INICIALIZADO. Ejecutar refresh nuevamente.\n";
-    exit;
+    error_log("SYNC_INCREMENTAL SKIPPED: user={$userId} has no historyId (initial sync required)");
+    //continue; // en CLI
+    return;  // en HTTP
 }
 
 $startHistoryId = $tokenRow['last_history_id'];

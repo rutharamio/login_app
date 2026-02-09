@@ -63,7 +63,19 @@ LIMIT 20
 $stmt = $conn->prepare($sql);
 $stmt->execute([$userId]);
 $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$stmt = $conn->prepare("
+    SELECT needs_initial_sync
+    FROM google_gmail_tokens
+    WHERE user_id = ?
+    LIMIT 1
+");
+$stmt->execute([$_SESSION['user_id']]);
+$needsInitial = (int) $stmt->fetchColumn();
+
 ?>
+
+<?php if ($needsInitial === 1): ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -73,6 +85,41 @@ $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
 
+<div class="top-bar">
+    <h1>Bandeja de entrada</h1>
+</div>
+
+<div class="sync-card">
+
+    <div class="sync-wrapper" id="sync-wrapper">
+
+        <p class="muted sync-description">
+            Tu correo todavía se está preparando. Para poder continuar es necesario realizar la sincronización inicial.
+        </p>
+
+        <form method="post" action="actions/trigger_initial_sync.php" id="initial-sync-form">
+            <button type="submit" class="btn btn-primary" id="sync-now-btn">
+                Sincronizar ahora
+            </button>
+        </form>
+
+    </div>
+</div>
+
+<div id="sync-toast" class="sync-toast hidden"></div>
+
+<script src="/login_app/assets/js/initial-sync.js?v=<?= time() ?>"></script> 
+<?php exit; ?>
+<?php endif; ?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Bandeja de entrada</title>
+    <link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body>
+<div id="incremental-toast" class="sync-toast hidden"></div>
 <div class="top-bar">
     <h1>Bandeja de entrada</h1>
 
@@ -85,18 +132,17 @@ $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <a href="../dashboard.php" class="btn btn-light">Pestaña principal</a>
 
-    <form method="post" action="sync_incremental.php" style="display:inline;">
-        <button type="submit" class="btn btn-primary">
+    <!-- <form method="post" action="sync_incremental.php" style="display:inline;"> -->
+        <button id= 'sync-incremental-btn' type="button" class="btn btn-primary">
             Refrescar correos
         </button>
-    </form>
+    <!-- </form> -->
 
-        <form method="post" action="compose.php" style="display:inline;">
+    <form method="post" action="compose.php" style="display:inline;">
         <button type="submit" class="btn btn-primary">
             Redactar correo
         </button>
     </form>
-
 </div>
 </div>
 
@@ -178,6 +224,8 @@ $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </button>
     </form>
 <?php endif; ?>
+
+<script src="/login_app/assets/js/incremental-sync.js?v=<?= time() ?>"></script>
 <script src="../assets/js/inbox-actions.js?v=<?= time() ?>"></script>
 </body>
 </html>

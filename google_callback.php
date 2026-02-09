@@ -3,11 +3,6 @@ require __DIR__ . '/config/session.php';
 require __DIR__ . '/config/db.php';
 require __DIR__ . '/config/google_config.php';
 
-// DEBUG TEMPORAL: quitar cuando funcione
-error_log('google_callback GET: ' . print_r($_GET, true));
-error_log('google_callback COOKIE: ' . print_r($_COOKIE, true));
-error_log('google_callback SESSION: ' . print_r($_SESSION, true));
-
 if (
     !isset($_GET['state']) ||
     !isset($_SESSION['oauth_state']) ||
@@ -24,6 +19,7 @@ if (!isset($_GET['code'])) {
     exit;
 }
 
+/* Intercambiar code por token */
 $data = [
     'code' => $_GET['code'],
     'client_id' => GOOGLE_CLIENT_ID,
@@ -33,25 +29,28 @@ $data = [
 ];
 
 $ch = curl_init(GOOGLE_TOKEN_URL);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => http_build_query($data)
+]);
 $response = curl_exec($ch);
 curl_close($ch);
 
 $token = json_decode($response, true);
 
 if (!isset($token['access_token'])) {
-    echo '<pre>';
-    echo "ERROR AL OBTENER TOKEN:\n\n";
-    print_r($token);
+    header('Location: index.php?error=google');
     exit;
 }
 
+/* Obtener info del usuario */
 $ch = curl_init(GOOGLE_USERINFO_URL);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Authorization: Bearer ' . $token['access_token']
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer ' . $token['access_token']
+    ]
 ]);
 $userInfo = curl_exec($ch);
 curl_close($ch);
@@ -63,40 +62,39 @@ if (!isset($googleUser['email'])) {
     exit;
 }
 
-$sql = "SELECT id, usuario, email, rol
-        FROM usuarios
-        WHERE google_id = ? OR email = ?
-        LIMIT 1";
-$stmt = $conn->prepare($sql);
+/* Crear o buscar usuario */
+$stmt = $conn->prepare("
+    SELECT id, usuario, email, rol
+    FROM usuarios
+    WHERE google_id = ? OR email = ?
+    LIMIT 1
+");
 $stmt->execute([$googleUser['id'], $googleUser['email']]);
 $user = $stmt->fetch();
 
 if (!$user) {
-    $usuarioGoogle = $googleUser['given_name']
-        ?? explode('@', $googleUser['email'])[0];
-
-    $sql = "INSERT INTO usuarios (usuario, email, google_id, email_verified)
-            VALUES (?, ?, ?, 1)";
-    $stmt = $conn->prepare($sql);
+    $stmt = $conn->prepare("
+        INSERT INTO usuarios (usuario, email, google_id, email_verified)
+        VALUES (?, ?, ?, 1)
+    ");
     $stmt->execute([
-        $usuarioGoogle,
+        $googleUser['given_name'] ?? explode('@', $googleUser['email'])[0],
         $googleUser['email'],
         $googleUser['id']
     ]);
 
     $userId = $conn->lastInsertId();
-    $usuario = $usuarioGoogle;
-    $email = $googleUser['email'];
+    $rol = 'user';
 } else {
     $userId = $user['id'];
-    $usuario = $user['usuario'];
-    $email = $user['email'];
+    $rol = $user['rol'];
 }
 
+/* Sesión */
 session_regenerate_id(true);
 $_SESSION['user_id'] = $userId;
-$_SESSION['usuario'] = $usuario;
-$_SESSION['email'] = $email;
-$_SESSION['rol'] = $user['rol']??'user';
+$_SESSION['rol'] = $rol;
+$_SESSION['email'] = $googleUser['email'];
+
 header('Location: dashboard.php');
 exit;
