@@ -54,9 +54,9 @@ $url = 'https://gmail.googleapis.com/gmail/v1/users/me/history'
      . '?startHistoryId=' . urlencode($startHistoryId)
      . '&historyTypes=messageAdded'
      . '&historyTypes=labelAdded'
-     . '&historyTypes=labelRemoved'
-     . '&labelId=INBOX';
-
+     . '&historyTypes=labelRemoved';
+    // &labelId=INBOX
+    
 $ch = curl_init($url);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
@@ -255,71 +255,148 @@ foreach ($messageIds as $gmailMessageId) {
         $threadsFetched++;
     }
 
-    // 4) Persistir email
+        // Traer headers
+        $headers = $msg['payload']['headers'] ?? [];
+        $headerMap = [];
+
+        foreach ($headers as $h) {
+            $headerMap[strtolower($h['name'])] = $h['value'];
+        }
+
+        $body = extractEmailBody($msg['payload'] ?? []);
+
+        $internalDate = !empty($msg['internalDate'])
+            ? date('Y-m-d H:i:s', ((int)$msg['internalDate']) / 1000)
+            : date('Y-m-d H:i:s');
+
+        $fromParsed = parseEmailAndName($headerMap['from'] ?? '');
+        $fromEmail  = $fromParsed['email'];
+        $fromName   = $fromParsed['name'];
+
+        $labels = $msg['labelIds'] ?? [];
+
+        $isInbox  = in_array('INBOX',  $labels, true);
+        $isSent   = in_array('SENT',   $labels, true);
+        $isTrash  = in_array('TRASH',  $labels, true);
+        $isUnread = in_array('UNREAD', $labels, true);
+
+        $messageIdHeader = $headerMap['message-id'] ?? null;
+
+        $emailId = null;
+
+        /* ===== 1. RFC reconciliation ===== */
+
+        if (!empty($messageIdHeader)) {
+
+            $stmt = $conn->prepare("
+                SELECT id FROM emails
+                WHERE user_id = ? AND rfc_message_id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$userId, $messageIdHeader]);
+            $existingId = $stmt->fetchColumn();
+
+            if ($existingId) {
+
+                $stmt = $conn->prepare("
+                    UPDATE emails
+                    SET gmail_message_id = ?,
+                        thread_id = ?,
+                        internal_date = ?,
+                        from_email = ?,
+                        from_name = ?,
+                        subject_original = ?,
+                        subject_limpio = ?,
+                        snippet = ?,
+                        body_text = ?,
+                        body_html = ?,
+                        size_bytes = ?,
+                        is_inbox = ?,
+                        is_deleted = ?,
+                        is_sent = ?,
+                        is_read = ?,
+                        is_temporary = 0
+                    WHERE id = ?
+                ");
+
+                $stmt->execute([
+                    $gmailMessageId,
+                    $threadDbId,
+                    $internalDate,
+                    $fromEmail,
+                    $fromName ?? '',
+                    $headerMap['subject'] ?? '',
+                    $headerMap['subject'] ?? '',
+                    $msg['snippet'] ?? '',
+                    $body['text'],
+                    $body['html'],
+                    $msg['sizeEstimate'] ?? 0,
+                    $isInbox ? 1 : 0,
+                    $isTrash ? 1 : 0,
+                    $isSent  ? 1 : 0,
+                    $isUnread ? 0 : 1,
+                    $existingId
+                ]);
+
+                $emailId = $existingId;
+            }
+        }
+
+        /* ===== 2. Insert if not reconciled ===== */
+
+        if (!$emailId) {
+
+            $stmt = $conn->prepare("
+                INSERT INTO emails
+                (
+                    user_id,
+                    gmail_message_id,
+                    thread_id,
+                    internal_date,
+                    from_email,
+                    from_name,
+                    subject_original,
+                    subject_limpio,
+                    snippet,
+                    body_text,
+                    body_html,
+                    size_bytes,
+                    has_attachments,
+                    is_inbox,
+                    is_deleted,
+                    is_sent,
+                    is_read,
+                    rfc_message_id,
+                    rfc_references
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+            ");
+
+            $stmt->execute([
+                $userId,
+                $gmailMessageId,
+                $threadDbId,
+                $internalDate,
+                $fromEmail,
+                $fromName ?? '',
+                $headerMap['subject'] ?? '',
+                $headerMap['subject'] ?? '',
+                $msg['snippet'] ?? '',
+                $body['text'],
+                $body['html'],
+                $msg['sizeEstimate'] ?? 0,
+                $isInbox ? 1 : 0,
+                $isTrash ? 1 : 0,
+                $isSent  ? 1 : 0,
+                $isUnread ? 0 : 1,
+                $messageIdHeader,
+                $headerMap['references'] ?? null
+            ]);
+
+            $emailId = $conn->lastInsertId();
+        }
+
     $messagesFetched++;
-
-    $internalDate = !empty($msg['internalDate'])
-        ? date('Y-m-d H:i:s', ((int)$msg['internalDate']) / 1000)
-        : date('Y-m-d H:i:s');
-
-    $headers = $msg['payload']['headers'] ?? [];
-    $headerMap = [];
-    foreach ($headers as $h) {
-        $headerMap[strtolower($h['name'])] = $h['value'];
-    }
-    $body = extractEmailBody($msg['payload'] ?? []);
-    
-    $fromParsed = parseEmailAndName($headerMap['from'] ?? '');
-    $fromEmail  = $fromParsed['email'];
-    $fromName   = $fromParsed['name'];
-    $messageIdHeader = $headerMap['message-id'] ?? null;
-
-    $stmt = $conn->prepare("
-        INSERT INTO emails
-        (
-            user_id,
-            gmail_message_id,
-            thread_id,
-            internal_date,
-            from_email,
-            from_name,
-            subject_original,
-            subject_limpio,
-            snippet,
-            body_text,
-            body_html,
-            size_bytes,
-            has_attachments,
-            is_inbox,
-            is_deleted,
-            rfc_message_id,
-            rfc_references  
-        )
-        VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
-    ");
-
-    $stmt->execute([
-        $userId,
-        $gmailMessageId,
-        $threadDbId,
-        $internalDate,
-        $fromEmail,
-        $fromName ?? '',
-        $headerMap['subject'] ?? '',
-        $headerMap['subject'] ?? '',
-        $msg['snippet'] ?? '',
-        $body['text'],
-        $body['html'],
-        $msg['sizeEstimate'] ?? 0,
-        1,
-        0,
-        $headerMap['message-id'] ?? null,
-        $headerMap['references'] ?? null
-    ]);
-
-    $emailId = $conn->lastInsertId();
-    
     // Reconciliar temporales "sent_*" vs real Gmail
     reconcileSentTempAgainstReal(
         $conn,

@@ -205,6 +205,43 @@ if ($httpCode !== 200) {
     exit('Error enviando respuesta.');
 }
 
+$data = json_decode($response, true);
+$gmailMessageId = $data['id'] ?? null;
+
+if ($gmailMessageId) {
+
+    $metaUrl = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{$gmailMessageId}?format=metadata&metadataHeaders=Message-ID";
+
+    $metaCh = curl_init($metaUrl);
+    curl_setopt_array($metaCh, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $accessToken
+        ]
+    ]);
+
+    $metaResponse = curl_exec($metaCh);
+    curl_close($metaCh);
+
+    $metaData = json_decode($metaResponse, true);
+
+    if (!empty($metaData['payload']['headers'])) {
+        foreach ($metaData['payload']['headers'] as $header) {
+            if (strtolower($header['name']) === 'message-id') {
+
+                $stmt = $conn->prepare("
+                    UPDATE emails
+                    SET rfc_message_id = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([$header['value'], $tempEmailId]);
+
+                break;
+            }
+        }
+    }
+}
+
 //confirmar email como enviado
 
 $stmt = $conn->prepare("
