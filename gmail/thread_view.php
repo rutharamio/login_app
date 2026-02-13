@@ -104,15 +104,6 @@ $isDeletedThread = ((int)$stmt->fetchColumn() === 0);
                 <?= htmlspecialchars($subject) ?>
             </div>
         </div>
-
-        <div class="thread-actions">
-            <form method="post" action="../actions/gmail/bulk_action.php">
-                <input type="hidden" name="thread_id" value="<?= $threadId ?>">
-                <button class="btn btn-danger" name="action" value="delete">
-                    Eliminar
-                </button>
-            </form>
-        </div>
     </div>
 
     <?php foreach ($emails as $email): ?>
