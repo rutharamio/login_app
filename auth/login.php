@@ -11,7 +11,7 @@ $usuario = trim($_POST['usuario'] ?? '');
 $password = $_POST['password'] ?? '';
 
 if ($usuario === '' || $password === '') {
-    header('Location: ../index.php?error=datos');
+    header('Location: /login_app/index.php?error=datos');
     exit;
 }
 
@@ -26,13 +26,13 @@ $user = $stmt->fetch();
 
 /* Credenciales incorrectas */
 if (!$user || !$user['password_hash'] || !password_verify($password, $user['password_hash'])) {
-    header('Location: ../index.php?error=credenciales');
+    header('Location: /login_app/index.php?error=credenciales');
     exit;
 }
 
 /* Email NO verificado */
 if ((int)$user['email_verified'] !== 1) {
-    header('Location: ../index.php?error=verificacion');
+    header('Location: /login_app/index.php?error=verificacion');
     exit;
 }
 

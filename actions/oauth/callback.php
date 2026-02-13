@@ -1,10 +1,10 @@
 <?php
-require __DIR__ . '/../config/session.php';
-require __DIR__ . '/../config/db.php';
-require __DIR__ . '/../config/google_config.php';
+require __DIR__ . '/../../config/session.php';
+require __DIR__ . '/../../config/db.php';
+require __DIR__ . '/../../config/google_config.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ../index.php');
+    header('Location: /login_app/index.php');
     exit;
 }
 
@@ -14,7 +14,7 @@ if (
     $_GET['state'] !== $_SESSION['gmail_oauth_state']
 ) {
     unset($_SESSION['gmail_oauth_state']);
-    header('Location: ../dashboard.php?gmail=error');
+    header('Location: /login_app/dashboard.php?gmail=error');
     exit;
 }
 
@@ -41,11 +41,19 @@ curl_close($ch);
 $token = json_decode($response, true);
 
 if (!isset($token['access_token'], $token['expires_in'])) {
-    header('Location: ../dashboard.php?gmail=error');
+    header('Location: /login_app/dashboard.php?gmail=error');
     exit;
 }
 
-$expiresAt = date('Y-m-d H:i:s', time() + (int)$token['expires_in']);
+//$expiresAt = date('Y-m-d H:i:s', time() + (int)$token['expires_in']);
+
+$expiresIn = (int)$token['expires_in'];
+
+// Margen de seguridad de 60 segundos
+$expiresAt = date(
+    'Y-m-d H:i:s',
+    time() + max(60, $expiresIn - 60)
+);
 
 $stmt = $conn->prepare("
 INSERT INTO google_gmail_tokens
@@ -86,5 +94,5 @@ $stmt->execute([
     $token['token_type'] ?? 'Bearer'
 ]);
 
-header('Location: ../dashboard.php?gmail=connected');
+header('Location: /login_app/dashboard.php?gmail=connected');
 exit;

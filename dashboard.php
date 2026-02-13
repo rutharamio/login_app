@@ -70,19 +70,19 @@ if ($gmail) {
                 Volvé a conectar tu cuenta.
             </div>
 
-            <a href="gmail/connect.php" class="btn btn-primary">
+            <a href="/login_app/actions/gmail/connect.php" class="btn btn-primary">
                 Conectar Gmail
             </a>
 
         <?php else: ?>
-            <form action="gmail/connect.php" method="get">
+            <form action="/login_app/actions/gmail/connect.php" method="get">
                 <button type="submit" class="btn btn-primary">
                     Conectar Gmail
                 </button>
             </form>
         <?php endif; ?>
 
-        <form action="logout.php" method="post">
+        <form action="auth/logout.php" method="post">
             <button type="submit" class="btn btn-light">
                 Cerrar sesión
             </button>

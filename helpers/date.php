@@ -29,7 +29,7 @@ function formatDateHuman(string $datetime, string $userTz = 'America/Asuncion'):
 
     // Ayer
     if ($ts >= $yesterday) {
-        return 'Ayer.' . $dt -> format('H:i');
+        return 'Ayer. ' . $dt -> format('H:i');
     }
 
     // Este año → 14 ene

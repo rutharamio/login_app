@@ -1,6 +1,6 @@
 <?php
-require __DIR__ . '/../config/session.php';
-require __DIR__ . '/../config/db.php';
+require __DIR__ . '/../../config/session.php';
+require __DIR__ . '/../../config/db.php';
 
 error_log('BULK_ACTION HIT');
 
@@ -50,5 +50,5 @@ $stmt = $conn->prepare("
 ");
 $stmt->execute($params);
 
-header('Location: inbox.php');
+header('Location: /login_app/gmail/inbox.php');
 exit;

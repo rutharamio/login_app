@@ -70,7 +70,7 @@ foreach ($users as $userId) {
         . '?startHistoryId=' . urlencode($startHistoryId)
         . '&historyTypes=messageAdded'
         . '&historyTypes=labelAdded'
-        . '&historyTypes=labelRemoved'
+        . '&historyTypes=labelRemoved' //;
         . '&labelId=INBOX';
 
     $ch = curl_init($url);
@@ -240,6 +240,10 @@ foreach ($users as $userId) {
         // 2) Traer mensaje FULL
         try {
             $msg = fetchGmailMessageFull($accessTokenString, $gmailMessageId);
+
+            error_log("PAYLOAD STRUCTURE:");
+            error_log(print_r($msg['payload'], true));
+
         } catch (Exception $e) {
             // No abortar toda la sync por 1 mensaje
             error_log("FETCH MESSAGE FAILED msgId={$gmailMessageId} err=" . $e->getMessage());
@@ -383,10 +387,14 @@ foreach ($users as $userId) {
 
         // 6) Adjuntos (si hay)
         $attachments = extractAttachments($msg['payload'] ?? []);
+        error_log("ATTACHMENTS FOUND: " . print_r($attachments, true));
 
         if (!empty($attachments)) {
 
             $baseDir = __DIR__ . "/../storage/users/{$userId}/threads/{$threadDbId}/attachments/{$emailId}";
+
+            error_log("BASE DIR: " . $baseDir);
+
             if (!is_dir($baseDir)) {
                 mkdir($baseDir, 0775, true);
             }
@@ -403,11 +411,20 @@ foreach ($users as $userId) {
                     continue;
                 }
 
-                $binary = downloadGmailAttachment(
-                    $accessTokenString,
-                    $gmailMessageId,
-                    $att['attachment_id']
-                );
+                if ($att['attachment_id']) {
+
+                    $binary = downloadGmailAttachment(
+                        $accessTokenString,
+                        $gmailMessageId,
+                        $att['attachment_id']
+                    );
+
+                } else {
+
+                    // attachment viene inline
+                    $binary = $att['inline_data'];
+                }
+
 
                 if ($binary === null) {
                     continue;

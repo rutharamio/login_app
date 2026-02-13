@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/config/session.php';
+require __DIR__ . '/../config/session.php';
 
 $_SESSION = [];
 
@@ -18,5 +18,5 @@ if (ini_get("session.use_cookies")) {
 
 session_destroy();
 
-header('Location: index.php');
+header('Location: /login_app/index.php');
 exit;

@@ -1,6 +1,6 @@
 <?php
-require __DIR__ . '/../config/session.php';
-require __DIR__ . '/../config/db.php';
+require __DIR__ . '/../../config/session.php';
+require __DIR__ . '/../../config/db.php';
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
@@ -19,6 +19,6 @@ $stmt->execute([$userId]);
 header ('Content-Type: application/json'); 
 echo json_encode(['status' => 'queued']);   
 
-header('Location: ../dashboard.php?sync=queued');
+header('Location: /login_app/dashboard.php?sync=queued');
 exit;
 

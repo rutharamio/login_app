@@ -52,4 +52,5 @@ header('Content-Length: ' . filesize($filePath));
 header('Cache-Control: no-cache');
 
 readfile($filePath);
+var_dump($filePath);
 exit;

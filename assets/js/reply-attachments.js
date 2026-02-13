@@ -16,7 +16,7 @@ selectedFiles.forEach((file, index) => {
     const item = document.createElement('div');
     item.className = 'attachment-preview-item';
 
-    // Botón eliminar ❌
+    // Botón eliminar 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'attachment-remove';

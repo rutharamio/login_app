@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Buscando');
 
         try {
-            await fetch('/login_app/gmail/sync_incremental.php', {
+            await fetch('/login_app/actions/sync/sync_incremental_button.php', {
                 method: 'POST'
             });
         } catch (e) {

@@ -36,20 +36,43 @@ function extractEmailBody(array $payload): array {
     ];
 }
 
-function extractAttachments(array $payload): array { 
+function extractAttachments(array $payload): array {
 
     $attachments = [];
 
-    $walk = function($part) use (&$attachments, &$walk) {
+    $walk = function ($part) use (&$attachments, &$walk) {
+
         if (!is_array($part)) return;
 
-        if (!empty($part['filename']) && !empty($part['body']['attachmentId'])) {
-            $attachments[] = [
-                'filename'      => $part['filename'],
-                'mime_type'     => $part['mimeType'] ?? 'application/octet-stream',
-                'attachment_id' => $part['body']['attachmentId'],
-                'size_bytes'    => $part['body']['size'] ?? 0
-            ];
+        $filename = $part['filename'] ?? '';
+        $mime     = $part['mimeType'] ?? 'application/octet-stream';
+        $body     = $part['body'] ?? [];
+
+        if ($filename !== '') {
+
+            // Caso 1: Attachment externo (attachmentId)
+            if (!empty($body['attachmentId'])) {
+
+                $attachments[] = [
+                    'filename'      => $filename,
+                    'mime_type'     => $mime,
+                    'attachment_id' => $body['attachmentId'],
+                    'size_bytes'    => $body['size'] ?? 0,
+                    'inline_data'   => null
+                ];
+            }
+
+            // Caso 2: Attachment embebido directamente (body.data)
+            elseif (!empty($body['data'])) {
+
+                $attachments[] = [
+                    'filename'      => $filename,
+                    'mime_type'     => $mime,
+                    'attachment_id' => null,
+                    'size_bytes'    => $body['size'] ?? 0,
+                    'inline_data'   => base64_decode(strtr($body['data'], '-_', '+/'))
+                ];
+            }
         }
 
         if (!empty($part['parts']) && is_array($part['parts'])) {
@@ -59,7 +82,6 @@ function extractAttachments(array $payload): array {
         }
     };
 
-    // payload puede tener parts o ser el part raíz
     $walk($payload);
 
     return $attachments;

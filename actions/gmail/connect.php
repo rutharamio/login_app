@@ -1,6 +1,6 @@
 <?php
-require __DIR__ . '/../config/session.php';
-require __DIR__ . '/../config/google_config.php';
+require __DIR__ . '/../../config/session.php';
+require __DIR__ . '/../../config/google_config.php';
 
 /* Debe estar logueado */
 if (!isset($_SESSION['user_id'])) {

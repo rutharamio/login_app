@@ -1,6 +1,6 @@
 <?php
-require __DIR__ . '/config/session.php';
-require __DIR__ . '/config/google_config.php';
+require __DIR__ . '/../config/session.php';
+require __DIR__ . '/../config/google_config.php';
 
 $_SESSION['oauth_state'] = bin2hex(random_bytes(16));
 

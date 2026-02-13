@@ -21,7 +21,7 @@ if (!isset($_SESSION['user_id'])) {
 
 <h2>Redactar correo</h2>
 
-<form method="post" action="send.php" enctype="multipart/form-data">
+<form method="post" action="/login_app/actions/gmail/send.php" enctype="multipart/form-data">
 
     <label>Para</label>
     <input type="email" name="to" required>
@@ -40,6 +40,8 @@ if (!isset($_SESSION['user_id'])) {
         hidden
     >
 
+    <div id="filePreview" class="attachment-preview"></div>
+
     <div class="actions">
         <label for="fileInput" class="btn btn-light">
             Adjuntar archivos
@@ -56,10 +58,11 @@ if (!isset($_SESSION['user_id'])) {
 </div>
 
 <script>
+
 const fileInput = document.getElementById('fileInput');
 const preview = document.getElementById('filePreview');
 
-let filesList = [];
+let selectedFiles = [];
 
 if (fileInput && preview) {
     fileInput.addEventListener('change', () => {
@@ -69,57 +72,49 @@ if (fileInput && preview) {
 }
 
 function renderPreview() {
-preview.innerHTML = '';
+    preview.innerHTML = '';
 
-selectedFiles.forEach((file, index) => {
-    const item = document.createElement('div');
-    item.className = 'attachment-preview-item';
+    selectedFiles.forEach((file, index) => {
+        const item = document.createElement('div');
+        item.className = 'attachment-preview-item';
 
-    // Botón eliminar ❌
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'attachment-remove';
-    removeBtn.innerHTML = 'Eliminar';
-    removeBtn.onclick = () => {
-        selectedFiles.splice(index, 1);
-        syncFileInput();
-        renderPreview();
-    };
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'attachment-remove';
+        removeBtn.innerHTML = 'Eliminar';
+        removeBtn.onclick = () => {
+            selectedFiles.splice(index, 1);
+            syncFileInput();
+            renderPreview();
+        };
 
-    // Contenido preview
-    const content = document.createElement('div');
-    content.className = 'attachment-content';
+        const content = document.createElement('div');
+        content.className = 'attachment-content';
 
-    // Imagen
-    if (file.type.startsWith('image/')) {
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
-        img.className = 'attachment-img';
-        content.appendChild(img);
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.className = 'attachment-img';
+            content.appendChild(img);
+        } else if (file.type === 'application/pdf') {
+            const iframe = document.createElement('iframe');
+            iframe.src = URL.createObjectURL(file);
+            iframe.className = 'attachment-pdf';
+            content.appendChild(iframe);
+        } else {
+            content.textContent = `${file.name} (${Math.round(file.size / 1024)} KB)`;
+        }
 
-    // PDF
-    } else if (file.type === 'application/pdf') {
-        const iframe = document.createElement('iframe');
-        iframe.src = URL.createObjectURL(file);
-        iframe.className = 'attachment-pdf';
-        content.appendChild(iframe);
-
-    // Otros archivos
-    } else {
-        content.textContent = `${file.name} (${Math.round(file.size / 1024)} KB)`;
-    }
-
-    item.appendChild(removeBtn);
-    item.appendChild(content);
-    preview.appendChild(item);
-});
+        item.appendChild(removeBtn);
+        item.appendChild(content);
+        preview.appendChild(item);
+    });
 }
 
-// Mantener sincronizado el input file real
 function syncFileInput() {
-const dataTransfer = new DataTransfer();
-selectedFiles.forEach(file => dataTransfer.items.add(file));
-fileInput.files = dataTransfer.files;
+    const dataTransfer = new DataTransfer();
+    selectedFiles.forEach(file => dataTransfer.items.add(file));
+    fileInput.files = dataTransfer.files;
 }
 
 </script>   

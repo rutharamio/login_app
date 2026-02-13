@@ -11,7 +11,7 @@ require BASE_PATH . '/config/db.php';
 require BASE_PATH . '/config/google_config.php';
 require BASE_PATH . '/config/mail.php';
 
-date_default_timezone_set('UTC');  // por?
+date_default_timezone_set('UTC');  
 
 require BASE_PATH . '/lib/GmailService.php';
 require BASE_PATH . '/helpers/gmail_oauth.php';

@@ -1,21 +1,21 @@
 <?php
-require __DIR__ . '/config/session.php';
-require __DIR__ . '/config/db.php';
-require __DIR__ . '/config/google_config.php';
+require __DIR__ . '/../config/session.php';
+require __DIR__ . '/../config/db.php';
+require __DIR__ . '/../config/google_config.php';
 
 if (
     !isset($_GET['state']) ||
     !isset($_SESSION['oauth_state']) ||
     $_GET['state'] !== $_SESSION['oauth_state']
 ) {
-    header('Location: index.php?error=google');
+    header('Location: /login_app/index.php?error=google');
     exit;
 }
 
 unset($_SESSION['oauth_state']);
 
 if (!isset($_GET['code'])) {
-    header('Location: index.php?error=google');
+    header('Location: /login_app/index.php?error=google');
     exit;
 }
 
@@ -40,7 +40,7 @@ curl_close($ch);
 $token = json_decode($response, true);
 
 if (!isset($token['access_token'])) {
-    header('Location: index.php?error=google');
+    header('Location: /login_app/index.php?error=google');
     exit;
 }
 
@@ -58,7 +58,7 @@ curl_close($ch);
 $googleUser = json_decode($userInfo, true);
 
 if (!isset($googleUser['email'])) {
-    header('Location: index.php?error=google');
+    header('Location: /login_app/index.php?error=google');
     exit;
 }
 
@@ -92,9 +92,19 @@ if (!$user) {
 
 /* Sesión */
 session_regenerate_id(true);
-$_SESSION['user_id'] = $userId;
-$_SESSION['rol'] = $rol;
-$_SESSION['email'] = $googleUser['email'];
 
-header('Location: dashboard.php');
+$_SESSION['user_id'] = $userId;
+$_SESSION['email']   = $googleUser['email'];
+$_SESSION['rol']     = $rol;
+
+/* Asegurar consistencia con login normal */
+if ($user && isset($user['usuario'])) {
+    $_SESSION['usuario'] = $user['usuario'];
+} else {
+    $_SESSION['usuario'] =
+        $googleUser['given_name']
+        ?? explode('@', $googleUser['email'])[0];
+}
+
+header('Location: /login_app/dashboard.php');
 exit;

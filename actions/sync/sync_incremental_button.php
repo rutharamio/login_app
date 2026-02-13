@@ -1,139 +1,141 @@
 <?php
 
-require __DIR__ . '/../config/session.php';
-require __DIR__ . '/../config/db.php';
-require __DIR__ . '/../config/google_config.php';
-require __DIR__ . '/../helpers/reconciliation.php';
-require __DIR__ . '/../helpers/gmail_oauth.php';
+require __DIR__ . '/../../config/session.php';
+require __DIR__ . '/../../config/db.php';
+require __DIR__ . '/../../config/google_config.php';
+require __DIR__ . '/../../helpers/reconciliation.php';
+require __DIR__ . '/../../helpers/gmail_oauth.php';
+require __DIR__ . '/../../helpers/attachments.php';
+require __DIR__ . '/../../helpers/gmail_message.php';
 
 error_log("SYNC_INCREMENTAL HIT OK user_id=" . ($_SESSION['user_id'] ?? 'null'));
 
-function extractEmailBody(array $payload): array
-{
-    $bodyText = '';
-    $bodyHtml = '';
+// function extractEmailBody(array $payload): array
+// {
+//     $bodyText = '';
+//     $bodyHtml = '';
 
-    $walk = function ($part) use (&$walk, &$bodyText, &$bodyHtml) {
+//     $walk = function ($part) use (&$walk, &$bodyText, &$bodyHtml) {
 
-        if (!is_array($part)) {
-            return;
-        }
+//         if (!is_array($part)) {
+//             return;
+//         }
 
-        $mime = $part['mimeType'] ?? '';
+//         $mime = $part['mimeType'] ?? '';
 
-        if ($mime === 'text/plain' && !empty($part['body']['data'])) {
-            $bodyText .= base64_decode(strtr($part['body']['data'], '-_', '+/'));
-        }
+//         if ($mime === 'text/plain' && !empty($part['body']['data'])) {
+//             $bodyText .= base64_decode(strtr($part['body']['data'], '-_', '+/'));
+//         }
 
-        if ($mime === 'text/html' && !empty($part['body']['data'])) {
-            $bodyHtml .= base64_decode(strtr($part['body']['data'], '-_', '+/'));
-        }
+//         if ($mime === 'text/html' && !empty($part['body']['data'])) {
+//             $bodyHtml .= base64_decode(strtr($part['body']['data'], '-_', '+/'));
+//         }
 
-        if (!empty($part['parts'])) {
-            foreach ($part['parts'] as $p) {
-                $walk($p);
-            }
-        }
-    };
+//         if (!empty($part['parts'])) {
+//             foreach ($part['parts'] as $p) {
+//                 $walk($p);
+//             }
+//         }
+//     };
 
-    $walk($payload);
+//     $walk($payload);
 
-    return [
-        'text' => trim($bodyText),
-        'html' => trim($bodyHtml),
-    ];
-}
+//     return [
+//         'text' => trim($bodyText),
+//         'html' => trim($bodyHtml),
+//     ];
+// }
 
-function extractAttachments(array $payload): array
-{
-    $attachments = [];
+// function extractAttachments(array $payload): array
+// {
+//     $attachments = [];
 
-    $walk = function($part) use (&$attachments, &$walk) {
-        if (!is_array($part)) return;
+//     $walk = function($part) use (&$attachments, &$walk) {
+//         if (!is_array($part)) return;
 
-        if (!empty($part['filename']) && !empty($part['body']['attachmentId'])) {
-            $attachments[] = [
-                'filename'      => $part['filename'],
-                'mime_type'     => $part['mimeType'] ?? 'application/octet-stream',
-                'attachment_id' => $part['body']['attachmentId'],
-                'size_bytes'    => $part['body']['size'] ?? 0
-            ];
-        }
+//         if (!empty($part['filename']) && !empty($part['body']['attachmentId'])) {
+//             $attachments[] = [
+//                 'filename'      => $part['filename'],
+//                 'mime_type'     => $part['mimeType'] ?? 'application/octet-stream',
+//                 'attachment_id' => $part['body']['attachmentId'],
+//                 'size_bytes'    => $part['body']['size'] ?? 0
+//             ];
+//         }
 
-        if (!empty($part['parts']) && is_array($part['parts'])) {
-            foreach ($part['parts'] as $p) {
-                $walk($p);
-            }
-        }
-    };
+//         if (!empty($part['parts']) && is_array($part['parts'])) {
+//             foreach ($part['parts'] as $p) {
+//                 $walk($p);
+//             }
+//         }
+//     };
 
-    // payload puede tener parts o ser el part raíz
-    $walk($payload);
+//     // payload puede tener parts o ser el part raíz
+//     $walk($payload);
 
-    return $attachments;
-}
+//     return $attachments;
+// }
 
-function downloadGmailAttachment(
-    string $accessToken,
-    string $messageId,
-    string $attachmentId
-): ?string {
+// function downloadGmailAttachment(
+//     string $accessToken,
+//     string $messageId,
+//     string $attachmentId
+// ): ?string {
 
-    $url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{$messageId}/attachments/{$attachmentId}";
+//     $url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/{$messageId}/attachments/{$attachmentId}";
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $accessToken
-        ]
-    ]);
+//     $ch = curl_init($url);
+//     curl_setopt_array($ch, [
+//         CURLOPT_RETURNTRANSFER => true,
+//         CURLOPT_HTTPHEADER => [
+//             'Authorization: Bearer ' . $accessToken
+//         ]
+//     ]);
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+//     $response = curl_exec($ch);
+//     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+//     curl_close($ch);
 
-    error_log("GMAIL ATTACHMENT HTTP CODE: " . $httpCode);
-    error_log("GMAIL ATTACHMENT RAW RESPONSE: " . $response);
+//     error_log("GMAIL ATTACHMENT HTTP CODE: " . $httpCode);
+//     error_log("GMAIL ATTACHMENT RAW RESPONSE: " . $response);
 
 
-    $data = json_decode($response, true);
+//     $data = json_decode($response, true);
 
-    if (empty($data['data'])) {
-        return null;
-    }
+//     if (empty($data['data'])) {
+//         return null;
+//     }
 
-    return base64_decode(strtr($data['data'], '-_', '+/'));
-}
+//     return base64_decode(strtr($data['data'], '-_', '+/'));
+// }
 
-function fetchGmailMessageFull(string $accessToken, string $messageId): array
-{
-    $url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/"
-         . urlencode($messageId)
-         . "?format=full";
+// function fetchGmailMessageFull(string $accessToken, string $messageId): array
+// {
+//     $url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/"
+//          . urlencode($messageId)
+//          . "?format=full";
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $accessToken
-        ]
-    ]);
+//     $ch = curl_init($url);
+//     curl_setopt_array($ch, [
+//         CURLOPT_RETURNTRANSFER => true,
+//         CURLOPT_HTTPHEADER => [
+//             'Authorization: Bearer ' . $accessToken
+//         ]
+//     ]);
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+//     $response = curl_exec($ch);
+//     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+//     curl_close($ch);
 
-    error_log("GMAIL MESSAGE FULL HTTP CODE: " . $httpCode . " msgId=" . $messageId);
+//     error_log("GMAIL MESSAGE FULL HTTP CODE: " . $httpCode . " msgId=" . $messageId);
 
-    if ($httpCode !== 200) {
-        error_log("GMAIL MESSAGE FULL RAW RESPONSE: " . $response);
-        throw new Exception("No se pudo obtener mensaje full: $messageId");
-    }
+//     if ($httpCode !== 200) {
+//         error_log("GMAIL MESSAGE FULL RAW RESPONSE: " . $response);
+//         throw new Exception("No se pudo obtener mensaje full: $messageId");
+//     }
 
-    $data = json_decode($response, true);
-    return is_array($data) ? $data : [];
-}
+//     $data = json_decode($response, true);
+//     return is_array($data) ? $data : [];
+// }
 
 $userId = $_SESSION['user_id'];
 
@@ -491,10 +493,11 @@ foreach ($messageIds as $gmailMessageId) {
 
     // 6) Adjuntos (si hay)
     $attachments = extractAttachments($msg['payload'] ?? []);
+    error_log("ATTACHMENTS FOUND: " . print_r($attachments, true));
 
     if (!empty($attachments)) {
 
-        $baseDir = __DIR__ . "/../storage/users/{$userId}/threads/{$threadDbId}/attachments/{$emailId}";
+        $baseDir = __DIR__ . "/../../storage/users/{$userId}/threads/{$threadDbId}/attachments/{$emailId}";
         if (!is_dir($baseDir)) {
             mkdir($baseDir, 0775, true);
         }
@@ -511,11 +514,20 @@ foreach ($messageIds as $gmailMessageId) {
                 continue;
             }
 
-            $binary = downloadGmailAttachment(
-                $accessTokenString,
-                $gmailMessageId,
-                $att['attachment_id']
-            );
+            if ($att['attachment_id']) {
+
+                $binary = downloadGmailAttachment(
+                    $accessTokenString,
+                    $gmailMessageId,
+                    $att['attachment_id']
+                );
+
+            } else {
+
+                // attachment viene inline
+                $binary = $att['inline_data'];
+            }
+
 
             if ($binary === null) {
                 continue;

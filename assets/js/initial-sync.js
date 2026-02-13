@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const interval = setInterval(async () => {
             try {
-                const res = await fetch('/login_app/actions/check_initial_sync.php');
+                const res = await fetch('/login_app/actions/sync/check_initial_sync.php');
 
                 if (!res.ok) {
                 throw new Error('HTTP ' + res.status);
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.disabled = true;
             btn.textContent = 'Sincronizando.';
 
-            fetch('/login_app/actions/tigger_initial_sync.php', {
+            fetch('/login_app/actions/sync/trigger_initial_sync.php', {
                 method: 'POST'
             });
 

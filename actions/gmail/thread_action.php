@@ -1,6 +1,6 @@
 <?php
-require __DIR__ . '/../config/session.php';
-require __DIR__ . '/../config/db.php';
+require __DIR__ . '/../../config/session.php';
+require __DIR__ . '/../../config/db.php';
 
 /* 1. Seguridad básica */
 if (!isset($_SESSION['user_id'])) {
@@ -74,7 +74,7 @@ if ($action === 'restore' && $threadId) {
     ");
     $stmt->execute([$threadId, $userId]);
 
-    header('Location: inbox.php?view=deleted');
+    header('Location: /login_app/gmail/inbox.php?view=deleted');
     exit;
 }
 
@@ -89,11 +89,11 @@ if ($action === 'empty_trash') {
     ");
     $stmt->execute([$userId]);
 
-    header('Location: inbox.php?view=deleted');
+    header('Location: /login_app/gmail/inbox.php?view=deleted');
     exit;
 }
 
 
 /* 5. Redirigir */
-header('Location: inbox.php');
+header('Location: /login_app/gmail/inbox.php');
 exit;

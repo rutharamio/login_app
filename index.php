@@ -55,7 +55,7 @@ $error = $_GET['error'] ?? '';
             <?php endif; ?>
         <?php endif; ?>
 
-        <form action="google_login.php" method="get">
+        <form action="auth/google_login.php" method="get">
             <button type="submit" class="btn btn-light">
                 Continuar con Google
             </button>
