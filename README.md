@@ -1,280 +1,134 @@
-login_app – Google OAuth + Gmail DB-First Engine
+login_app – Google OAuth + Motor Gmail DB-First
 
-Descripción general
-login_app es una aplicación web desarrollada en PHP que implementa un sistema desacoplado de gestión de correos basado en un modelo DB-First.
+Descripción General
+- login_app es una aplicación web desarrollada en PHP que implementa un motor de ingestión de correos basado en un modelo DB-First sobre la API de Gmail.
+- El sistema desacopla identidad, autorización, sincronización y lógica de negocio en módulos claramente definidos.
+- La interfaz de usuario nunca consulta Gmail directamente.
+- Todos los datos visibles por el usuario provienen exclusivamente de la base de datos local.
 
-La aplicación permite:
-- Autenticación de usuarios mediante Google OAuth 2.0
-- Conexión opcional de la cuenta Gmail del usuario mediante un OAuth independiente
-- Sincronización progresiva de correos hacia base de datos local
-- Persistencia completa de hilos, mensajes, headers y adjuntos
-- Envío de correos vía Gmail API con reconciliación automática
-- Manejo seguro y automático de expiración y refresco de tokens
+Arquitectura Principal
+El sistema está estructurado en cuatro responsabilidades:
 
-La UI no consulta Gmail directamente.
-Todos los datos visibles provienen de la base de datos local.
-
-Arquitectura general
-La aplicación separa claramente cuatro responsabilidades:
-1) Autenticación (Login con Google)
-  Identifica al usuario
-  Crea o reutiliza registro en tabla usuarios
-  No otorga acceso a Gmail
-  Genera sesión interna segura
-
-2) Conexión Gmail (OAuth separado)
-  Solicita permisos de Gmail API
-  Guarda tokens en google_gmail_tokens
-  Habilita lectura y envío de correos
-  Puede reconectarse sin afectar login
-
-3) Motor de sincronización (DB-First)
-  CLI con cron cada 2 minutos (entorno de prueba)
-  Sincronización incremental mediante Gmail History API
-  Persistencia en tablas propias
-  Reconciliación de mensajes enviados
-
-4) Lógica de negocio
-  Inbox desde DB
-  Lectura de hilos
-  Eliminación / restauración local
-  Manejo de adjuntos
-  Control de expiración de tokens
-  Gestión de estados internos
-
-Modelo DB-First (Concepto clave)
-La aplicación no funciona como cliente webmail tradicional.
-
-En lugar de consultar Gmail API en cada pantalla:
-  Un proceso CLI ejecuta sync_incremental
-  Trae cambios desde Gmail
-  Persiste todo en base de datos local
-  La UI solo consulta la DB
-
-Esto genera:
-- Alto rendimiento
-- Desacople total de la API
-- Resiliencia ante fallos de Gmail
-- Capacidad de auditoría
-- Base para automatización futura
-
-Flujo OAuth
-La aplicación implementa dos flujos OAuth completamente independientes.
-
-OAuth de Login
-Objetivo: autenticar al usuario en la aplicación.
-
-Scopes:
+1. Autenticación (Google OAuth – Identidad)
+Scopes utilizados:
 openid
 email
 profile
 
-Archivos principales:
-auth/google_callback.php
-google_login.php
+Responsabilidades:
+  Crear o validar usuarios en la tabla usuarios
+  Generar sesión interna segura
+  No concede acceso a Gmail
 
-Resultado:
-Usuario autenticado
-Registro en usuarios
-
-Variables de sesión:
-user_id
-email
-rol
-
-Importante:
-Los tokens obtenidos aquí no permiten acceder a Gmail.
-OAuth de Gmail
-Objetivo: permitir acceso a Gmail API.
-
-Scope actual:
+2. Autorización Gmail (OAuth – Acceso a correo)
+Scope requerido:
 https://www.googleapis.com/auth/gmail.modify
 
-Archivos principales:
-actions/gmail/connect.php
-actions/oauth/callback.php
+Responsabilidades:
+  Solicitar permisos para acceder a Gmail API
+  Almacenar tokens en google_gmail_tokens
+  Permitir lectura y envío de correos
+  Un usuario puede estar autenticado sin tener Gmail conectado.
 
-Resultado:
-Registro en tabla:
-google_gmail_tokens
+3. Motor de Sincronización DB-First
+Implementado mediante CLI + cron.
 
-Campos relevantes:
-access_token
-refresh_token
-expires_at
-state (active | expired)
-last_history_id
-needs_initial_sync
+Responsabilidades:
+  Obtener cambios mediante Gmail History API
+  Persistir hilos, mensajes, headers y adjuntos
+  Ejecutar reconciliación de mensajes enviados
+  Mantener estado incremental por usuario
 
-Separación crítica:
-Un usuario puede estar logueado sin tener Gmail conectado.
+4. Capa de Negocio
 
-Base de datos (modelo actual)
+Responsabilidades:
+  Inbox desde base de datos
+  Renderizado de hilos
+  Eliminación / restauración local
+  Gestión de adjuntos
+  Control del ciclo de vida de tokens
+  Registro auditable de sincronizaciones
 
-Tabla usuarios
-Campos principales:
-id
-usuario
-email
-google_id
-rol
+Modelo DB-First
+En lugar de consultar Gmail en cada request:
 
-Tabla google_gmail_tokens
-Gestiona estado OAuth de Gmail.
-Campos principales:
-user_id
-access_token
-refresh_token
-expires_at
-state (active | expired)
-last_history_id
-needs_initial_sync
-updated_at
+  Un proceso CLI sincroniza periódicamente.
+  Los datos se almacenan localmente.
+  La UI opera exclusivamente sobre la persistencia local.
 
-state permite:
-Detectar tokens revocados
-Forzar reconexión
-Evitar errores silenciosos
+Esto proporciona:
+  Alto rendimiento
+  Resiliencia ante fallos de Gmail
+  Capacidad de auditoría
+  Base para extensibilidad futura
+  Ciclo de Vida de Tokens
 
-Tabla email_threads
-Mapping interno de hilos.
-id (interno)
-gmail_thread_id (real Gmail)
-
-Tabla emails
-Persistencia completa de mensajes.
-Campos relevantes:
-gmail_message_id
-rfc_message_id
-thread_id (interno)
-is_read
-is_deleted
-is_inbox
-is_sent
-is_temporary
-replaced_by
-internal_date
-sent_at_local
-
-Importante:
-gmail_message_id ≠ rfc_message_id
-
-Tabla email_attachments
-Persistencia local de adjuntos en filesystem.
-
-Tabla sync_runs
-Auditoría de sincronizaciones:
-start_time
-end_time
-user_id
-mensajes procesados
-Manejo de tokens (Actualizado)
-
-La lógica está centralizada en:
+Gestionado a través de:
 helpers/gmail_oauth.php
 
-Función clave:
-getValidAccessToken(PDO $conn, int $userId)
-Flujo:
-Carga token desde DB
-Si expires_at <= UTC_TIMESTAMP():
-→ ejecuta refreshAccessToken()
+Función principal:
+getValidAccessToken()
 
-Si Google devuelve invalid_grant:
-→ state = 'expired'
-→ access_token = NULL
-
-Devuelve access_token válido
-
-El sistema implementa:
-
-✔ Auto-refresh automático
-✔ Detección real de expiración
-✔ Manejo de revocación
-✔ Sin dependencia de la UI
+Responsabilidades:
+  Verificar expiración
+  Refrescar automáticamente
+  Manejar errores invalid_grant
+  Actualizar estado del token en base de datos
 
 Sincronización
-Sync Initial
+  Sincronización Inicial = Se activa cuando last_history_id es NULL.
 
-Se ejecuta cuando:
-last_history_id IS NULL
+Función Sync_initial:
+  Inicializa el estado del buzón
+  Guarda el historyId actual
+  Prepara el sistema para sincronización incremental
 
-Acciones:
-Obtiene historyId inicial
-Guarda en DB
-Marca needs_initial_sync
-No reemplaza incremental.
+  Sincronización Incremental = Se ejecuta mediante cron.
 
-Sync Incremental
-Ejecutado por cron cada 2 minutos (entorno prueba).
+Procesa eventos:
+  messageAdded
+  labelAdded
+  labelRemoved
 
-Proceso:
-Registra sync_run
-Refresca token si necesario
-Llama Gmail History API
+Responsabilidades:
+  Insertar nuevos mensajes
+  Descargar adjuntos
+  Ejecutar reconciliación de mensajes enviados
+  Actualizar estado de history
+  Envío y Reconciliación
 
-Detecta:
-messageAdded
-labelAdded
-labelRemoved
-Trae FULL message
+Cuando se envía un correo:
+  Se crea un mensaje temporal local.
+  El usuario lo visualiza inmediatamente.
 
-Inserta en:
-email_threads
-emails
-email_headers
-email_recipients
-email_attachments
+Durante la sincronización incremental:
+  Se detecta el mensaje real proveniente de Gmail.
+  El registro temporal es reemplazado.
+  No ocurre duplicación visual.
+  Gestión de Estados Locales
 
-Ejecuta reconciliación
-Actualiza last_history_id
+Las acciones:
+  Delete
+  Restore
+  Empty Trash
+  Operan únicamente a nivel local.
+  Actualmente no existe sincronización automática hacia Gmail (push-to-Gmail).
 
-Envío de correos y reconciliación
-reply.php y send.php
+Nota de Escalabilidad
+Intervalo actual de cron:
+*/2 * * * *
+Adecuado para entorno de desarrollo.
 
-Proceso:
-Validación de sesión
-Verificación ownership
-getValidAccessToken()
-Construcción MIME multipart
+En producción se requerirá:
+  Workers horizontales
+  Procesamiento basado en colas
+  Notificaciones push o eventos
+  Planificación distribuida por usuario
 
-Envío:
-POST gmail/v1/users/me/messages/send
-Guardado como mensaje temporal:
-is_temporary = 1
-sent_at_local = UTC_TIMESTAMP()
-gmail_message_id = sent_<uniqid>
-Reconciliación automática
-
-Cuando incremental trae el mensaje real:
-Se ejecuta:
-reconcileSentTempAgainstReal()
-
-Match por:
-Ventana temporal (~10 min)
-from_email
-subject
-body_text
-
-Si coincide:
-
-Temporal:
-is_deleted = 1
-replaced_by = id_real
-
-El usuario ve el mensaje inmediatamente, pero el real lo reemplaza sin duplicación.
-
-Estados locales (Delete / Restore)
-
-Las acciones operan en DB:
-delete: is_deleted = 1 is_inbox = 0
-restore: is_deleted = 0 is_inbox = 1
-empty_trash: is_deleted = 2
-
-Actualmente estas acciones no se reflejan automáticamente en Gmail.
-
-Escalabilidad del cron
-Cron
-Actualmente:
-*/2 * * * * php cli/sync_incremental.php
-Es válido en entorno de prueba.
+Capacidades Actuales
+  Separación dual de OAuth
+  Ingestión DB-First
+  Persistencia completa de correos
+  Control robusto del ciclo de vida de tokens
+  Motor de reconciliación
+  Registro auditable de sincronizaciones
